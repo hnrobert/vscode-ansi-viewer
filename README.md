@@ -14,15 +14,15 @@ ANSI Color styling and previewer for your text editor.
 
 ### Enable / Disable
 
-![demo1](https://github.com/user-attachments/assets/fa74dd85-6a7b-42eb-8353-67231240c557)
+![demo1](images/demo1.gif)
 
 ### Switch Normal / Dim / Hidden
 
-![demo2](https://github.com/user-attachments/assets/4f833bf0-5304-4a4d-9135-b50b7a9a7c92)
+![demo2](images/demo2.gif)
 
 ### Apply matching file glob rules for workspace
 
-![demo3](https://github.com/user-attachments/assets/af70205f-c33b-4197-b7d1-2c3403c6082a)
+![demo3](images/demo3.gif)
 
 ## Basic usage
 
