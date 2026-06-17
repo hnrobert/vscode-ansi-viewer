@@ -1,4 +1,13 @@
-import { TextDocument, ProviderResult, TextEditorDecorationType, window, Range, workspace, ThemeColor } from "vscode";
+import {
+  TextDocument,
+  ProviderResult,
+  TextEditorDecorationType,
+  TextEditor,
+  window,
+  Range,
+  workspace,
+  ThemeColor,
+} from "vscode";
 
 import * as ansi from "./ansi";
 import { AnsiContentPreviewProvider } from "./AnsiContentPreviewProvider";
@@ -145,7 +154,7 @@ export class AnsiDecorationProvider implements TextEditorDecorationProvider {
   private _decorationTypes = new Map<string, TextEditorDecorationType>();
 
   /**
-   * 清理转义序列装饰缓存，用于配置更改时
+   * Clears the cached escape sequence decoration types. Used on configuration change.
    */
   public clearEscapeSequenceDecorations(): void {
     for (const [key, decorationType] of this._decorationTypes.entries()) {
@@ -153,6 +162,17 @@ export class AnsiDecorationProvider implements TextEditorDecorationProvider {
         decorationType.dispose();
         this._decorationTypes.delete(key);
       }
+    }
+  }
+
+  /**
+   * Clears all decorations previously applied on the given editor (sets them to
+   * empty ranges). The decoration types themselves are kept in the cache for
+   * reuse; they are only removed from this editor.
+   */
+  public clearEditorDecorations(editor: TextEditor): void {
+    for (const decorationType of this._decorationTypes.values()) {
+      editor.setDecorations(decorationType, []);
     }
   }
 
@@ -164,7 +184,7 @@ export class AnsiDecorationProvider implements TextEditorDecorationProvider {
     let decorationType = this._decorationTypes.get(cacheKey);
 
     if (!decorationType) {
-      // 清理之前的转义序列装饰类型
+      // Clear previous escape sequence decoration types
       for (const [key, oldDecorationType] of this._decorationTypes.entries()) {
         if (key.startsWith("escape_")) {
           oldDecorationType.dispose();
@@ -179,7 +199,7 @@ export class AnsiDecorationProvider implements TextEditorDecorationProvider {
         case "hidden":
           decorationType = window.createTextEditorDecorationType({
             opacity: "0%",
-            // 或者使用 textDecoration 来完全隐藏
+            // Alternatively, use textDecoration to fully hide it
             textDecoration: "none; font-size: 0px;",
           });
           break;
@@ -195,7 +215,7 @@ export class AnsiDecorationProvider implements TextEditorDecorationProvider {
   }
 
   resolveDecoration(key: string): ProviderResult<TextEditorDecorationType> {
-    // 处理转义序列装饰的动态键
+    // Handle the dynamic key for escape sequence decorations
     if (key.startsWith("escape_")) {
       return this.getEscapeSequenceDecorationType();
     }

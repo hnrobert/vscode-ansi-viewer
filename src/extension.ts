@@ -19,15 +19,16 @@ import { AnsiContentPreviewProvider } from "./AnsiContentPreviewProvider";
 import {
   executeRegisteredTextEditorDecorationProviders,
   registerTextEditorDecorationProvider,
+  clearRegisteredTextEditorDecorationProviders,
 } from "./TextEditorDecorationProvider";
 
 export const extensionId = "HNRobert.ansi-viewer" as const;
 
-// 全局状态栏项目
+// Global status bar item
 let statusBarItem: StatusBarItem;
 
 /**
- * 检查 ANSI Viewer 插件是否启用
+ * Checks whether the ANSI Viewer extension is enabled.
  */
 function isAnsiViewerEnabled(): boolean {
   const config = workspace.getConfiguration("ansiViewer");
@@ -35,7 +36,7 @@ function isAnsiViewerEnabled(): boolean {
 }
 
 /**
- * 更新状态栏显示
+ * Updates the status bar display.
  */
 function updateStatusBar(enabled: boolean): void {
   statusBarItem.text = enabled ? "$(check) ANSI" : "$(x) ANSI";
@@ -44,10 +45,10 @@ function updateStatusBar(enabled: boolean): void {
 }
 
 /**
- * 检查文件是否应该自动设置为 ANSI 语言模式
+ * Checks whether a file should be automatically set to the ANSI language mode.
  */
 function shouldSetAnsiLanguageMode(document: TextDocument): boolean {
-  // 首先检查插件是否启用
+  // First, check whether the extension is enabled
   if (!isAnsiViewerEnabled()) {
     return false;
   }
@@ -64,7 +65,7 @@ function shouldSetAnsiLanguageMode(document: TextDocument): boolean {
     return false;
   }
 
-  // 获取文件的相对路径和文件名
+  // Get the file's relative path and filename
   const filePath = document.fileName;
   const workspaceFolder = workspace.getWorkspaceFolder(document.uri);
 
@@ -73,7 +74,7 @@ function shouldSetAnsiLanguageMode(document: TextDocument): boolean {
 
   if (workspaceFolder) {
     relativePath = filePath.replace(workspaceFolder.uri.fsPath, "").replace(/^[/\\]/, "");
-    // 将 Windows 路径分隔符转换为 Unix 风格
+    // Convert Windows path separators to Unix style
     relativePath = relativePath.replace(/\\/g, "/");
   }
 
@@ -81,14 +82,14 @@ function shouldSetAnsiLanguageMode(document: TextDocument): boolean {
   // console.log(`[ANSI Extension] Relative path: ${relativePath}`);
 
   const shouldSet = autoLanguageModeFiles.some((pattern: string) => {
-    // 标准化模式：将 Windows 路径分隔符转换为 Unix 风格
+    // Normalize pattern: convert Windows path separators to Unix style
     const normalizedPattern = pattern.replace(/\\/g, "/");
 
     // console.log(`[ANSI Extension] Testing pattern: ${normalizedPattern}`);
 
-    // 如果模式不包含路径分隔符，则同时匹配文件名和完整路径
+    // If the pattern has no path separator, match both the filename and the full path
     if (!normalizedPattern.includes("/")) {
-      // 对于没有路径的模式（如 "*.log"），同时匹配文件名和相对路径
+      // For patterns without a path (e.g. "*.log"), match the filename and the relative path
       const fileNameMatch = micromatch.isMatch(fileName, normalizedPattern);
       const relativePathMatch = micromatch.isMatch(relativePath, normalizedPattern);
       const expandedMatch = micromatch.isMatch(relativePath, `**/${normalizedPattern}`);
@@ -99,7 +100,7 @@ function shouldSetAnsiLanguageMode(document: TextDocument): boolean {
 
       return fileNameMatch || relativePathMatch || expandedMatch;
     } else {
-      // 对于包含路径的模式，直接匹配相对路径
+      // For patterns that include a path, match the relative path directly
       const match = micromatch.isMatch(relativePath, normalizedPattern);
       // console.log(`[ANSI Extension] Pattern ${normalizedPattern} - path match: ${match}`);
       return match;
@@ -111,7 +112,7 @@ function shouldSetAnsiLanguageMode(document: TextDocument): boolean {
 }
 
 /**
- * 为文档设置 ANSI 语言模式
+ * Sets the ANSI language mode for a document.
  */
 async function setAnsiLanguageMode(document: TextDocument, context: string): Promise<void> {
   if (document.languageId === "ansi") {
@@ -131,12 +132,12 @@ async function setAnsiLanguageMode(document: TextDocument, context: string): Pro
 export async function activate(context: ExtensionContext): Promise<void> {
   // console.log(`[ANSI Extension] Extension activated`);
 
-  // 创建状态栏项目
+  // Create status bar item
   statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100.1);
   statusBarItem.command = `${extensionId}.toggleEnable`;
   context.subscriptions.push(statusBarItem);
 
-  // 初始化状态栏
+  // Initialize status bar
   updateStatusBar(isAnsiViewerEnabled());
 
   const editorRedrawWatcher = new EditorRedrawWatcher();
@@ -168,43 +169,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
     commands.registerCommand(`${extensionId}.showPreviewToSide`, () => showPreview({ viewColumn: ViewColumn.Beside })),
   );
 
-  // 监听配置变更事件
-  context.subscriptions.push(
-    workspace.onDidChangeConfiguration(async (event) => {
-      if (event.affectsConfiguration("ansiViewer.autoLanguageModeFiles")) {
-        // console.log(`[ANSI Extension] Configuration changed, re-evaluating all open documents`);
-
-        // 重新检查所有打开的文档
-        for (const editor of window.visibleTextEditors) {
-          const document = editor.document;
-          if (shouldSetAnsiLanguageMode(document)) {
-            await setAnsiLanguageMode(document, "config changed - visible document");
-          }
-        }
-
-        // 也检查当前活动编辑器
-        if (window.activeTextEditor) {
-          const document = window.activeTextEditor.document;
-          if (shouldSetAnsiLanguageMode(document)) {
-            await setAnsiLanguageMode(document, "config changed - active document");
-          }
-        }
-      }
-
-      // 监听转义序列显示配置的变更
-      if (event.affectsConfiguration("ansiViewer.escapeSequenceDisplay")) {
-        // console.log(`[ANSI Extension] Escape sequence display configuration changed, refreshing decorations`);
-
-        // 触发所有 ANSI 文档的装饰刷新
-        for (const editor of window.visibleTextEditors) {
-          if (editor.document.languageId === "ansi") {
-            // 通过重新绘制编辑器来刷新装饰
-            editorRedrawWatcher.forceEmitForUri(editor.document.uri);
-          }
-        }
-      }
-    }),
-  ); // 监听文档打开事件，自动设置 ANSI 语言模式
+  // Listen for document open events to automatically set the ANSI language mode
   context.subscriptions.push(
     workspace.onDidOpenTextDocument(async (document: TextDocument) => {
       // console.log(`[ANSI Extension] Document opened: ${document.fileName}, language: ${document.languageId}`);
@@ -214,7 +179,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }),
   );
 
-  // 监听活动编辑器变化事件，用于捕获通过文件浏览器打开的文件
+  // Listen for active editor changes to catch files opened via the file explorer
   context.subscriptions.push(
     window.onDidChangeActiveTextEditor(async (editor) => {
       if (editor) {
@@ -233,36 +198,70 @@ export async function activate(context: ExtensionContext): Promise<void> {
 
   context.subscriptions.push(registerTextEditorDecorationProvider(ansiDecorationProvider));
 
-  // 监听配置更改
+  /**
+   * Refreshes the decorations of all currently visible ANSI documents.
+   * Re-applies decorations when the extension is enabled, and clears them when disabled.
+   * Covers changes to: enable, escapeSequenceDisplay, autoLanguageModeFiles.
+   */
+  const refreshActiveAnsiEditors = () => {
+    for (const editor of window.visibleTextEditors) {
+      const document = editor.document;
+
+      // Only handle ANSI language editors (skip the preview panel, refreshed separately)
+      if (document.languageId !== "ansi") {
+        continue;
+      }
+
+      if (isAnsiViewerEnabled()) {
+        // Re-trigger decoration rendering
+        editorRedrawWatcher.forceEmitForUri(document.uri);
+      } else {
+        // Remove already-applied decorations
+        clearRegisteredTextEditorDecorationProviders(editor);
+      }
+    }
+  };
+
+  // Listen for configuration changes: enable / escapeSequenceDisplay / autoLanguageModeFiles
   context.subscriptions.push(
-    workspace.onDidChangeConfiguration((changedConfig) => {
-      // 如果插件启用状态改变，更新状态栏
-      if (changedConfig.affectsConfiguration("ansiViewer.enable")) {
-        // console.log("ansiViewer.enable changed, updating status bar");
+    workspace.onDidChangeConfiguration(async (event) => {
+      const enableChanged = event.affectsConfiguration("ansiViewer.enable");
+      const escapeDisplayChanged = event.affectsConfiguration("ansiViewer.escapeSequenceDisplay");
+      const globChanged = event.affectsConfiguration("ansiViewer.autoLanguageModeFiles");
+
+      // Glob rules changed: re-evaluate the language mode of open documents
+      if (globChanged) {
+        for (const editor of window.visibleTextEditors) {
+          if (shouldSetAnsiLanguageMode(editor.document)) {
+            await setAnsiLanguageMode(editor.document, "config changed - visible document");
+          }
+        }
+
+        if (window.activeTextEditor && shouldSetAnsiLanguageMode(window.activeTextEditor.document)) {
+          await setAnsiLanguageMode(window.activeTextEditor.document, "config changed - active document");
+        }
+      }
+
+      // Enable state changed: update the status bar
+      if (enableChanged) {
         updateStatusBar(isAnsiViewerEnabled());
       }
 
-      // 如果转义序列显示设置改变，清理装饰缓存并重新绘制
-      if (changedConfig.affectsConfiguration("ansiViewer.escapeSequenceDisplay")) {
-        // 只有在插件启用时才处理
-        if (isAnsiViewerEnabled()) {
-          // console.log("ansiViewer.escapeSequenceDisplay changed, clearing escape sequence decorations");
-          ansiDecorationProvider.clearEscapeSequenceDecorations();
+      // Escape sequence display mode changed: clear the decoration cache (when enabled)
+      if (escapeDisplayChanged && isAnsiViewerEnabled()) {
+        ansiDecorationProvider.clearEscapeSequenceDecorations();
+      }
 
-          // 为所有 ANSI 文件重新触发装饰
-          for (const editor of window.visibleTextEditors) {
-            if (editor.document.languageId === "ansi") {
-              editorRedrawWatcher.forceEmitForUri(editor.document.uri);
-            }
-          }
-        }
+      // For any of the above changes, refresh the currently open ANSI documents
+      if (enableChanged || escapeDisplayChanged || globChanged) {
+        refreshActiveAnsiEditors();
       }
     }),
   );
 
   context.subscriptions.push(
     editorRedrawWatcher.onEditorRedraw(async (editor) => {
-      // 检查插件是否启用
+      // Check whether the extension is enabled
       if (!isAnsiViewerEnabled()) {
         return;
       }
@@ -280,7 +279,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }),
   );
 
-  // 注册切换开关命令
+  // Register the enable/disable toggle command
   context.subscriptions.push(
     commands.registerCommand(`${extensionId}.toggleEnable`, async () => {
       const config = workspace.getConfiguration("ansiViewer");
@@ -294,7 +293,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }),
   );
 
-  // 检查当前已打开的文档
+  // Check documents that are already open
   // console.log(`[ANSI Extension] Checking already opened documents`);
   if (window.activeTextEditor) {
     // console.log(`[ANSI Extension] Found active editor: ${window.activeTextEditor.document.fileName}`);
@@ -304,7 +303,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }
   }
 
-  // 检查所有可见编辑器中的文档
+  // Check documents across all visible editors
   for (const editor of window.visibleTextEditors) {
     const document = editor.document;
     if (shouldSetAnsiLanguageMode(document)) {

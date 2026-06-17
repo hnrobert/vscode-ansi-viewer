@@ -3,6 +3,13 @@ import { TextDocument, CancellationToken, ProviderResult, TextEditorDecorationTy
 export interface TextEditorDecorationProvider {
   provideDecorationRanges(document: TextDocument, token: CancellationToken): ProviderResult<[string, Range[]][]>;
   resolveDecoration(key: string, token: CancellationToken): ProviderResult<TextEditorDecorationType>;
+
+  /**
+   * Clears all decorations previously applied by this provider on the given editor
+   * (by setting them to empty ranges). Used when the extension is disabled or
+   * configuration changes to remove already-rendered ANSI decorations.
+   */
+  clearEditorDecorations?(editor: TextEditor): void;
 }
 
 const registeredProviders = new Set<TextEditorDecorationProvider>();
@@ -10,6 +17,15 @@ const registeredProviders = new Set<TextEditorDecorationProvider>();
 export function registerTextEditorDecorationProvider(provider: TextEditorDecorationProvider): { dispose(): void } {
   registeredProviders.add(provider);
   return { dispose: () => registeredProviders.delete(provider) };
+}
+
+/**
+ * Clears decorations applied by all registered providers on the given editor.
+ */
+export function clearRegisteredTextEditorDecorationProviders(editor: TextEditor): void {
+  for (const provider of registeredProviders) {
+    provider.clearEditorDecorations?.(editor);
+  }
 }
 
 export async function executeRegisteredTextEditorDecorationProviders(

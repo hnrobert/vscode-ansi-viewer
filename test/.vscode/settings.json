@@ -1,8 +1,4 @@
 {
     "ansiViewer.escapeSequenceDisplay": "hidden",
-    "ansiViewer.autoLanguageModeFiles": [
-        "**/*.ans",
-        "**/*.ansi",
-        "*.log"
-    ]
+    "ansiViewer.enable": true
 }
